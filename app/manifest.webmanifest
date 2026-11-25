@@ -1,0 +1,19 @@
+{
+  "name": "MoneyFlow — Personal Finance & Envelope Tracker",
+  "short_name": "MoneyFlow",
+  "description": "Zero-cost, offline-first personal finance & envelope tracker built for fast cash & transfer logging.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f3f5f7",
+  "theme_color": "#00b875",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "./icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

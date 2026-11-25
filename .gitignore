@@ -1,0 +1,18 @@
+# Personal / sensitive spreadsheets & local exports
+Finances Tracking.xlsx
+*.xlsx
+*.xls
+*.csv
+*-backup-*.json
+moneyflow-data*.json
+
+# OS & editor artifacts
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+
+# Cloudflare / Node local artifacts (if ever used)
+.wrangler/
+node_modules/
+.dev.vars
