@@ -1,59 +1,107 @@
-# MoneyFlow — Multi-Currency Personal Finance & Envelope PWA
+# MoneyFlow — Local-First Envelope Budgeting & Multi-Currency Cashflow PWA
 
-**MoneyFlow** is a zero-build, offline-first personal finance and envelope-budgeting Progressive Web App (PWA) with natural-language expense logging, multi-currency isolation, automated month-to-month carryover (`BBF`), lending/debt tracking, and **two-way Google Sheets live sync** with automatic official FX conversion to Nigerian Naira (`₦`).
+> **Zero-build, offline-first personal finance PWA built to eliminate spreadsheet formula bugs, micro-expense logging fatigue, and multi-currency tracking distortion—while syncing privately with your own Google Sheet in live Naira (`₦`) FX equivalents.**
 
-Built with vanilla ES Modules, IndexedDB, custom SVG visualizations, and Google Apps Script—requiring **no bundler, no backend server, and zero hosting cost** (deployable directly via GitHub Pages or Cloudflare Pages).
-
----
-
-## Key Engineering Highlights
-
-- **Local-First Offline Architecture (`app/src/db.js`, `app/sw.js`):**
-  - Persists months, transactions, lending ledgers, and custom parsing rules offline in browser `IndexedDB` (`moneyflow_db`, including seamless legacy database migration).
-  - Pre-caches application assets via Service Worker (`moneyflow-v3`) for full offline installability on mobile and desktop.
-- **Two-Way Google Sheets Sync + Live FX Conversion (`cloud/google-apps-script.gs`):**
-  - Connects to the user's private Google Sheet via a deployed Google Apps Script Web App (`SYNC_KEY`-authenticated `POST` endpoint avoiding CORS preflight issues).
-  - **Automatic Naira (`₦`) Reporting:** Fetches live official FX rates (`open.er-api.com/v6/latest/NGN` with `PropertiesService` fallback caching) and logs `Overview`, `Transactions`, and `Lending` tabs in `₦` alongside `Orig Currency`, `Orig Amount`, and `FX Rate (to ₦)` columns plus a timestamped rate banner.
-  - **Bidirectional Multi-Device Sync:** Maintains a chunked hidden `_MoneyFlowSync` JSON snapshot (`40,000`-char row chunks to respect Google Sheets' cell limits) so devices can **Sync (Merge)** by `updatedAt` timestamps or **Pull from Sheet** onto any new browser without exposing personal data in GitHub.
-- **Isolated Multi-Currency Envelope Engine (`app/src/budgetEngine.js`):**
-  - Supports **NGN (`₦`)**, **USD (`$`)**, **GBP (`£`)**, and **EUR (`€`)**.
-  - Deducts prior month **Work Expenses** off the top before computing distributable income across per-month percentage splits (`Givings`, `Personal`, `Investments`).
-  - Isolates `Auto BBF` (brought-balance-forward), `Investments & Reserves`, and `Lending` strictly per currency so cross-currency months never corrupt prior Naira balances.
-- **3-Second Smart Parser (`app/src/parser.js`):**
-  - Parses quick natural-language batch inputs (`"200 egg, 6k fuel work, $15 coffee"`), Nigerian bank/OPay debit SMS alerts, and bank CSV statements with learned bucket & tag auto-classification (`#family`, `#home`, `#church`, `#gifts`).
-- **Privacy & Interactive Charts (`app/src/charts.js`):**
-  - Zero-dependency responsive SVG stacked bar trend charts and Givings breakdowns, plus Privacy Eye toggles for home balances and Investments reserves.
+- **Executive Summary (1-Page PDF):** [`docs/MoneyFlow_Product_Brief.pdf`](docs/MoneyFlow_Product_Brief.pdf)
+- **Stack:** Vanilla ES Modules · IndexedDB (`moneyflow_db`) · Service Worker PWA (`sw.js`) · Custom SVG Charts · Google Apps Script (`open.er-api.com` FX)
 
 ---
 
-## Project Structure
+## The Problem I Built MoneyFlow to Solve
+
+Most people who try intentional percentage-based budgeting (*Givings, Personal, Investments, Reimbursable Work Expenses*) start in Excel or Google Sheets—and abandon it within weeks. After living through that workflow firsthand, four concrete product failures stood out:
+
+1. **Micro-Transaction Logging Fatigue ("The ₦200 Egg Problem"):**
+   Small daily cash purchases (`₦200` snacks, `₦500` bread, transit fares) and multi-line bank SMS debit alerts take 30–60 seconds each to open a spreadsheet, pick the right month tab, and enter manually. High logging friction kills consistency mid-month.
+2. **Silent Spreadsheet Formula Fragility:**
+   Envelope budgeting requires deterministic month-to-month rules: deducting **prior-month Work Expenses off the top** before splitting new income, rolling unspent or overspent balances forward (**Auto BBF**), and tracking **unpaid peer loans** across months. Manual formulas break on sign flips, copy-paste errors, and typos (such as typing `11,OOO` with letter `O`s instead of zeros).
+3. **Multi-Currency Distortion vs. Unified Home Reporting:**
+   When a user starts earning or spending in `USD ($)`, `GBP (£)`, or `EUR (€)` alongside `NGN (₦)`, single-currency trackers mix numbers and corrupt historical Naira carryovers. Conversely, isolating foreign currencies shouldn't stop you from seeing a consolidated **Naira (`₦`) equivalent** on your master ledger.
+4. **SaaS Lock-In vs. Data Privacy:**
+   Cloud finance apps store sensitive personal financial data on third-party servers behind subscriptions, while pure offline spreadsheets trap data on one device.
+
+---
+
+## How MoneyFlow Works
+
+### 1. 3-Second Expense Capture & Smart Parsing (`Log`)
+
+Instead of opening multiple forms for every small purchase, MoneyFlow turns natural-language shorthand (`"200 egg, 6k fuel work"`), multi-line bank SMS alerts, CSV statements, and 1-tap speed chips into classified transactions in under 3 seconds.
+
+- **Intentional Daily Focus:** Shows only daily safe-to-spend balance (`Personal + Givings`), active envelope balances, and `Work Expenses`—keeping allocation percentages and long-term `Investments` hidden from impulsive daily spend screens.
+- **Instant Privacy Toggle:** One click masks home balances in public spaces.
+- **Lending Toggle:** Switch directly between `Expense` and `Lending / Repaid` on the same fast screen.
+
+![MoneyFlow 3-Second Quick Log and Live Smart Parser](docs/screenshots/log.png)
+
+---
+
+### 2. Automated Waterfall, Auto BBF & Lending Carryover (`Transactions`)
+
+Every log triggers a deterministic full-ledger recompute in [`app/src/budgetEngine.js`](app/src/budgetEngine.js):
+
+- **Work Expense Off-Top Deduction:** Prior month `Work` spend is deducted from new `Net Income` before allocating `Personal`, `Givings`, and `Investments`.
+- **Automatic Bring-Balance-Forward (`Auto BBF`):** Surpluses and overspends carry forward automatically across consecutive months **of the same currency** (`NGN` → `NGN`, `USD` → `USD`), preventing cross-currency corruption.
+- **Persistent Lending Ledger:** Unpaid peer loans carry across months automatically until marked settled or partially repaid inside **Lending & Debt Details**.
+
+![MoneyFlow Monthly Income Waterfall & Envelopes](docs/screenshots/transactions.png)
+
+---
+
+### 3. Currency-Isolated Insights & Reserve Privacy (`Insights`)
+
+- **Income vs. Spending Trend:** Custom zero-dependency SVG stacked bars compare monthly `Net Income` against category spending (`Personal`, `Givings`, `Investments`, `Work`) filtered cleanly per active currency.
+- **Givings Attribution (`#family`, `#home`, `#church`, `#gifts`):** Keeps Giving in one envelope while automatically breaking down where generosity goes.
+- **Protected Investment Reserves:** `Investments & Reserves` stays masked on daily tabs and includes a `Hide / Show` blur toggle in Insights.
+
+![MoneyFlow Insights Trend, Investment Reserves, and Lending](docs/screenshots/insights.png)
+
+---
+
+### 4. Multi-Currency Setup, Simulator & Two-Way Google Sheets Sync (`Settings`)
+
+- **Start-of-Month Check-In:** Automatically prompts at the start of a new month to confirm monthly income and continue with or adjust your percentage split (`30 / 5 / 65` default).
+- **Multi-Currency Support (`NGN ₦`, `USD $`, `GBP £`, `EUR €`):** Set a default currency for new months or override per month, backed by a live allocation translation preview and **What-If Income Simulator**.
+- **Two-Way Google Sheets Sync (`cloud/google-apps-script.gs`):**
+  - Keeps personal data completely out of GitHub while staying synced across mobile and desktop via your own private Google Sheet.
+  - **Live Official Naira (`₦`) FX Reporting:** Fetches official rates (`open.er-api.com/v6/latest/NGN` with cached fallback) and writes `Overview`, `Transactions`, and `Lending` tabs in `₦` while clearly stating `Orig Currency`, `Orig Amount`, `FX Rate (to ₦)`, and a timestamped FX rate banner on every sheet.
+  - **Push, Merge & Restore (`_MoneyFlowSync`):** Stores a chunked hidden JSON snapshot inside the Sheet so **Sync Now** merges multi-device edits by `updatedAt` timestamps and **Pull from Sheet** restores your full ledger onto any new device.
+
+![MoneyFlow Settings, Multi-Currency Simulator, and Google Sheets Sync](docs/screenshots/settings.png)
+
+---
+
+## Architecture & Project Structure
 
 ```text
 ├── app/
-│   ├── index.html              # App shell, navigation tabs, modal & toast roots
-│   ├── manifest.webmanifest    # PWA manifest
-│   ├── sw.js                   # Network-first Service Worker cache
-│   ├── icons/icon.svg          # MoneyFlow emerald M + lightning SVG icon
-│   ├── styles/main.css         # Light & Dark mode OPay-inspired emerald theme
+│   ├── index.html                    # App shell, navigation tabs, modal & toast roots
+│   ├── manifest.webmanifest          # Installable PWA manifest
+│   ├── sw.js                         # Network-first Service Worker cache
+│   ├── icons/icon.svg                # Emerald M + lightning SVG brand mark
+│   ├── styles/main.css               # Auto Light/Dark OPay-inspired emerald theme
 │   └── src/
-│       ├── app.js              # UI state, Log / Transactions / Insights / Settings views
-│       ├── budgetEngine.js     # Pure envelope math, BBF carryover, FX formatting
-│       ├── parser.js           # Multi-currency NL input, SMS alert & CSV parser
-│       ├── charts.js           # Pure SVG trend & tag charts
-│       ├── db.js               # IndexedDB persistence, CSV/JSON export & 2-way sync
-│       ├── datePicker.js       # Custom inline calendar date field
-│       └── seedData.js         # Fictional portfolio demo dataset
+│       ├── app.js                    # State management, views, modals & live previews
+│       ├── budgetEngine.js           # Deterministic waterfall, BBF math, FX formatting
+│       ├── parser.js                 # Multi-currency NL batch, bank SMS & CSV parser
+│       ├── charts.js                 # Pure SVG trend & tag breakdown charts
+│       ├── db.js                     # IndexedDB store, legacy migration & 2-way sync
+│       ├── datePicker.js             # Custom inline calendar date selector
+│       └── seedData.js               # Fictional portfolio demo dataset
 ├── cloud/
-│   └── google-apps-script.gs   # Two-way Google Sheets sync + official FX Naira converter
-├── start-app.ps1               # Dependency-free PowerShell local static server
-└── start-app.bat               # Windows 1-click launcher
+│   └── google-apps-script.gs         # Two-way Google Sheets sync + official FX engine
+├── docs/
+│   ├── MoneyFlow_Product_Brief.pdf   # 1-page Product Manager brief
+│   └── screenshots/                  # Portfolio walkthrough screenshots
+├── start-app.ps1                     # Zero-dependency PowerShell HTTP server
+└── start-app.bat                     # Windows 1-click launcher
 ```
 
 ---
 
-## Running Locally
+## Run Locally (Zero Build Step)
 
-Because MoneyFlow uses standard ES modules with zero build step, any static file server works:
+MoneyFlow runs purely on standard browser ES Modules:
 
 ```powershell
 # Windows (PowerShell — zero dependencies)
@@ -61,7 +109,7 @@ Because MoneyFlow uses standard ES modules with zero build step, any static file
 # Opens http://localhost:8765
 ```
 
-Or using Python / Node if preferred:
+Or with Python / any static server:
 
 ```bash
 python -m http.server 8765 --directory app
@@ -69,18 +117,9 @@ python -m http.server 8765 --directory app
 
 ---
 
-## Setting Up Your Own Private Google Sheets Sync
+## Connect Your Own Private Google Sheet Sync
 
-Your personal ledger stays completely private inside your browser and your own Google Sheet (never committed to Git):
-
-1. Open your Google Sheet → **Extensions → Apps Script**.
-2. Paste the contents of [`cloud/google-apps-script.gs`](cloud/google-apps-script.gs) and change `SYNC_KEY` to your own secret passphrase.
+1. Open a private Google Sheet → **Extensions → Apps Script**.
+2. Paste [`cloud/google-apps-script.gs`](cloud/google-apps-script.gs) and replace `SYNC_KEY` with your own secret key.
 3. Click **Deploy → New deployment → Web app** (*Execute as: Me*, *Who has access: Anyone*).
-4. Open **MoneyFlow → Settings → Cloud Sync & Backup**, select **Google Sheets (Live Sync)**, paste your Web App URL and `SYNC_KEY`, and click **Sync Now** (or **Pull from Sheet** when opening MoneyFlow from a new device).
-
----
-
-## Deploying Publicly as a Portfolio Demo
-
-- **GitHub Pages / Cloudflare Pages:** Point static hosting directly to the `app/` directory with an empty build command.
-- Public visitors automatically load the anonymized demo dataset in `app/src/seedData.js`, while your personal records stay isolated in your browser `IndexedDB` and private Google Sheet.
+4. In MoneyFlow → **Settings → Cloud Sync & Backup**, select **Google Sheets (Live Sync)**, paste your Web App URL and `SYNC_KEY`, and click **Sync Now** (or **Pull from Sheet** on a fresh device).
